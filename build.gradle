@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '5.2.0'
+}
+
+group 'top.soliloquize'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+    maven { url 'http://maven.aliyun.com/nexus/content/groups/public/' }
+    maven { url 'http://maven.aliyun.com/nexus/content/repositories/jcenter' }
+    mavenCentral()
+}
+
+dependencies {
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+    compile 'io.vertx:vertx-core:3.8.1'
+    compile 'io.vertx:vertx-web:3.8.1'
+    // https://mvnrepository.com/artifact/org.springframework/spring-context
+    compile group: 'org.springframework', name: 'spring-context', version: '5.1.9.RELEASE'
+    compile group: 'org.javassist', name: 'javassist', version: '3.25.0-GA'
+// https://mvnrepository.com/artifact/org.springframework/spring-web
+    compile group: 'org.springframework', name: 'spring-web', version: '5.1.9.RELEASE'
+    compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.28'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.12.1'
+    compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.12.1'
+    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1'
+    compile group: 'com.google.guava', name: 'guava', version: '27.1-jre'
+    compile group: 'org.projectlombok', name: 'lombok', version: '1.18.8'
+    // 解决 gradle 使用 lombok 的问题
+    annotationProcessor "org.projectlombok:lombok:1.18.8"
+    compile group: 'com.alibaba', name: 'druid', version: '1.1.20'
+    compile group: 'mysql', name: 'mysql-connector-java', version: '8.0.17'
+    compile 'org.springframework.data:spring-data-jpa:2.1.10.RELEASE'
+    compile 'org.hibernate:hibernate-core:5.4.5.Final'
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = "UTF-8"
+}
+
+shadowJar {
+    // 避免jar包加上-all
+    classifier null
+    zip64 true
+    // 避免spring被覆盖
+    mergeServiceFiles('META-INF/spring.*')
+
+    manifest {
+        attributes 'Main-Class': 'top.soliloquize.vertxmvc.MainVerticle'
+    }
+}

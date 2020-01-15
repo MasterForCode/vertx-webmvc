@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration>
+    <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+            <PatternLayout pattern="%d{yyyy-MM-dd'T'HH:mm:ss,SSSZ} [%t] %level %l - %m%n"/>
+        </Console>
+        <RollingFile name="RollingFile" fileName="logs/common.log"
+                     filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">
+            <PatternLayout pattern="%d{ISO8601} [%t] %level %c - %m%n"/>
+            <Policies>
+                <TimeBasedTriggeringPolicy/>
+                <SizeBasedTriggeringPolicy size="10 MB"/>
+            </Policies>
+            <DefaultRolloverStrategy fileIndex="max" max="2"/>
+        </RollingFile>
+<!--        <RollingFile name="RollingFileMq" fileName="logs/common_mq.log"-->
+<!--                     filePattern="logs/$${date:yyyy-MM}/app-%d{MM-dd-yyyy}-%i.log.gz">-->
+<!--            <PatternLayout pattern="%d{ISO8601} [%t] %level %c - %m%n"/>-->
+<!--            <Policies>-->
+<!--                <TimeBasedTriggeringPolicy/>-->
+<!--                <SizeBasedTriggeringPolicy size="10 MB"/>-->
+<!--            </Policies>-->
+<!--            <DefaultRolloverStrategy fileIndex="max" max="2"/>-->
+<!--        </RollingFile>-->
+<!--        <RollingFile name="RollingFileAccessLog" fileName="logs/access.log"-->
+<!--                     filePattern="logs/$${date:yyyy-MM}/access-%d{MM-dd-yyyy}-%i.log.gz">-->
+<!--            <PatternLayout pattern="%d{ISO8601} %m%n"/>-->
+<!--            <Policies>-->
+<!--                <TimeBasedTriggeringPolicy/>-->
+<!--                <SizeBasedTriggeringPolicy size="100 MB"/>-->
+<!--            </Policies>-->
+<!--            <DefaultRolloverStrategy fileIndex="max" max="100"/>-->
+<!--        </RollingFile>-->
+    </Appenders>
+    <Loggers>
+<!--        <Logger name="RocketmqClient" level="warn" additivity="false">-->
+<!--            <AppenderRef ref="RollingFileMq"/>-->
+<!--            <AppenderRef ref="Console"/>-->
+<!--        </Logger>-->
+<!--        <Logger name="hwAccessLog" level="info" additivity="false">-->
+<!--            <AppenderRef ref="RollingFileAccessLog"/>-->
+<!--            <AppenderRef ref="Console"/>-->
+<!--        </Logger>-->
+        <Root level="info">
+            <AppenderRef ref="RollingFile"/>
+            <AppenderRef ref="Console"/>
+        </Root>
+    </Loggers>
+</Configuration>
