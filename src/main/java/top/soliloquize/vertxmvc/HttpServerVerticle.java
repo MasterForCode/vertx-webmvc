@@ -4,6 +4,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.templ.thymeleaf.ThymeleafTemplateEngine;
 import lombok.extern.slf4j.Slf4j;
 import top.soliloquize.vertxmvc.core.RouterWrapper;
 
@@ -16,8 +17,10 @@ public class HttpServerVerticle {
 
 
     public static void deploy(Vertx vertx, JsonObject jsonObject) {
+        String moduleName = jsonObject.getString("module.name");
         Integer instances = jsonObject.getInteger("server.instance");
         Integer port = jsonObject.getInteger("server.port");
+        String templateEngine = jsonObject.getString("template.engine");
         if (instances == null) {
             instances = Runtime.getRuntime().availableProcessors();
         }
@@ -26,7 +29,14 @@ public class HttpServerVerticle {
         }
 
         Router rootRouter = Router.router(vertx);
-        new RouterWrapper().routerMapping(rootRouter);
+        RouterWrapper routerWrapper = new RouterWrapper(vertx, moduleName);
+        if (templateEngine == null) {
+            routerWrapper.routerMapping(rootRouter, null);
+        } else if ("thymeleaf".equalsIgnoreCase(templateEngine)) {
+            routerWrapper.routerMapping(rootRouter, ThymeleafTemplateEngine.create(vertx));
+        } else {
+            log.error("Unsupported template engine " + templateEngine);
+        }
 
         for (int i = 0; i < instances; ++i) {
             HttpServer server = vertx.createHttpServer();

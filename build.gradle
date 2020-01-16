@@ -18,6 +18,7 @@ dependencies {
     testCompile group: 'junit', name: 'junit', version: '4.12'
     compile 'io.vertx:vertx-core:3.8.1'
     compile 'io.vertx:vertx-web:3.8.1'
+    compile 'io.vertx:vertx-web-templ-handlebars:3.8.1'
     // https://mvnrepository.com/artifact/org.springframework/spring-context
     compile group: 'org.springframework', name: 'spring-context', version: '5.1.9.RELEASE'
     compile group: 'org.javassist', name: 'javassist', version: '3.25.0-GA'
@@ -26,7 +27,9 @@ dependencies {
     compile group: 'org.slf4j', name: 'slf4j-simple', version: '1.7.28'
     compile group: 'org.apache.logging.log4j', name: 'log4j-api', version: '2.12.1'
     compile group: 'org.apache.logging.log4j', name: 'log4j-core', version: '2.12.1'
-    implementation group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1'
+    compile group: 'org.apache.commons', name: 'commons-lang3', version: '3.8.1'
+    // https://mvnrepository.com/artifact/org.apache.commons/commons-collections4
+    compile group: 'org.apache.commons', name: 'commons-collections4', version: '4.4'
     compile group: 'com.google.guava', name: 'guava', version: '27.1-jre'
     compile group: 'org.projectlombok', name: 'lombok', version: '1.18.8'
     // 解决 gradle 使用 lombok 的问题
@@ -35,6 +38,10 @@ dependencies {
     compile group: 'mysql', name: 'mysql-connector-java', version: '8.0.17'
     compile 'org.springframework.data:spring-data-jpa:2.1.10.RELEASE'
     compile 'org.hibernate:hibernate-core:5.4.5.Final'
+
+    // https://mvnrepository.com/artifact/io.vertx/vertx-web-templ-thymeleaf
+    compile group: 'io.vertx', name: 'vertx-web-templ-thymeleaf', version: '3.8.1'
+
 }
 
 tasks.withType(JavaCompile) {

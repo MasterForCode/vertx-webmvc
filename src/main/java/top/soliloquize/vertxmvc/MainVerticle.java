@@ -19,6 +19,12 @@ public class MainVerticle extends AbstractVerticle {
 
     @Override
     public void start(Promise<Void> startPromise) throws Exception {
-        HttpServerVerticle.deploy(vertx, new JsonObject().put("server.instance", Runtime.getRuntime().availableProcessors()).put("server.port", 80));
+        HttpServerVerticle.deploy(vertx,
+                new JsonObject()
+                        .put("module.name", "test")
+                        .put("server.instance", Runtime.getRuntime().availableProcessors())
+                        .put("server.port", 80)
+                        .put("template.engine", "thymeleaf")
+        );
     }
 }
