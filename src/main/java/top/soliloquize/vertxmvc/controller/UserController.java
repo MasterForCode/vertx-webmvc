@@ -23,7 +23,6 @@ public class UserController {
     private UserService userService;
 
     @RequestMapping(value = "/all")
-    @GetMapping("/dad")
     public List<User> test(List<Integer> a) {
         return userService.getAllUsers();
     }
@@ -44,6 +43,7 @@ public class UserController {
         rc.fileUploads().forEach(each -> System.out.println(each.fileName()));
     }
     @GetMapping(value = "/template")
+    @PostMapping(value = "/template")
     @Blocking
     public Future<String> template(RoutingContext rc) throws InterruptedException {
         Thread.sleep(10000);

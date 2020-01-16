@@ -5,6 +5,7 @@ import io.vertx.core.*;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.Json;
+import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.common.template.TemplateEngine;
@@ -22,7 +23,6 @@ import top.soliloquize.vertxmvc.exceptions.ControllerException;
 import top.soliloquize.vertxmvc.exceptions.MappingException;
 import top.soliloquize.vertxmvc.spring.SpringUtils;
 
-import java.lang.annotation.Annotation;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.reflect.*;
@@ -138,45 +138,101 @@ public class RouterWrapper {
             log.warn("no controller found");
             return;
         }
-        // 处理所有控制器
-        allControllerMap.forEach((name, controller) -> {
-            // 获取根path
-            String rootPath = this.moduleName + getRootPath(controller);
+        List<ControllerAnalysis> controllerAnalysisList = this.analysisController(allControllerMap);
+
+        controllerAnalysisList.forEach(controllerAnalysis -> actionMethod(rootRouter, controllerAnalysis, templateEngine));
+
+    }
+
+    private List<ControllerAnalysis> analysisController(Map<String, Object> allControllerMap) {
+        List<ControllerAnalysis> result = new ArrayList<>(allControllerMap.size());
+        allControllerMap.forEach((controllerName, controller) -> {
+            ControllerAnalysis element = ControllerAnalysis.builder().controller(controller).controllerName(controllerName).build();
+            result.add(element);
+            element.setPath(getRootPath(controller));
             // 处理控制器中的方法，过滤掉没有@RequestMapping、@GetMapping、@PostMapping、@PutMapping、@DeleteMapping任意一个注解的方法
             // 并限制只有一种注解
             List<Method> methods = Arrays.stream(controller.getClass().getDeclaredMethods())
                     .filter(RouterWrapper::validatorRequest)
                     .collect(Collectors.toList());
-            if (methods.size() > 0) {
-                // 处理方法
-                for (Method method : methods) {
-                    actionMethod(rootRouter, rootPath, controller, method, templateEngine);
+            boolean restFulController = controller.getClass().getAnnotation(RestController.class) != null;
+            methods.forEach(method -> {
+                MethodAnalysis subElement = MethodAnalysis.builder().method(method).methodName(method.getName()).build();
+                element.getMethodAnalysisList().add(subElement);
+                subElement.setFuture(Future.class.isAssignableFrom(method.getReturnType()));
+                subElement.setPath(this.getMethodPath(method));
+                subElement.setRestFul(restFulController || method.getAnnotation(ResponseBody.class) != null);
+                subElement.setParameters(new LocalVariableTableParameterNameDiscoverer().getParameterNames(method));
+
+                // 注入参数
+                Parameter[] parameters = method.getParameters();
+                subElement.setArgs(new Object[parameters.length]);
+                RouterWrapper.validatorParameter(method.getName(), parameters);
+                // 处理path
+                String path = "";
+                RequestMapping requestMapping = method.getAnnotation(RequestMapping.class);
+                if (requestMapping != null) {
+                    path += StringUtils.join(requestMapping.value(), RouterWrapper.PATH_SPLIT);
+                    RequestMethod[] requestMethods = requestMapping.method();
+                    if (requestMethods.length == 0) {
+                        // 默认支持get\post
+                        subElement.getHttpMethod().add(HttpMethod.GET);
+                        subElement.getHttpMethod().add(HttpMethod.POST);
+                    } else {
+                        Arrays.stream(requestMethods).forEach(each -> {
+                            subElement.getHttpMethod().add(this.getHttpMethod(each));
+                        });
+                    }
+
                 }
-            }
+                GetMapping getMapping = method.getAnnotation(GetMapping.class);
+                if (getMapping != null) {
+                    subElement.getHttpMethod().add(HttpMethod.GET);
+                    path += StringUtils.join(getMapping.value(), RouterWrapper.PATH_SPLIT);
+                }
+                PostMapping postMapping = method.getAnnotation(PostMapping.class);
+                if (postMapping != null) {
+                    subElement.getHttpMethod().add(HttpMethod.POST);
+                    path += StringUtils.join(postMapping.value(), RouterWrapper.PATH_SPLIT);
+                }
+                PutMapping putMapping = method.getAnnotation(PutMapping.class);
+                if (putMapping != null) {
+                    subElement.getHttpMethod().add(HttpMethod.PUT);
+                    path += StringUtils.join(putMapping.value(), RouterWrapper.PATH_SPLIT);
+                }
+                DeleteMapping deleteMapping = method.getAnnotation(DeleteMapping.class);
+                if (deleteMapping != null) {
+                    subElement.getHttpMethod().add(HttpMethod.DELETE);
+                    path += StringUtils.join(deleteMapping.value(), RouterWrapper.PATH_SPLIT);
+                }
+                if (!path.startsWith(RouterWrapper.PATH_SPLIT)) {
+                    path = RouterWrapper.PATH_SPLIT + path;
+                }
+                subElement.setPath(path);
+            });
+
         });
+        return result;
     }
 
     /**
      * 执行方法
      *
-     * @param rc         routing上下文
-     * @param method     方法
-     * @param controller 控制器
+     * @param methodAnalysis 方法
+     * @param controller     控制器
      * @return 结果
      */
-    private Future<Object> methodInvoke(RoutingContext rc, Method method, Object controller) {
-        Object[] args = actionParameter(method, rc);
+    private Future<Object> methodInvoke(MethodAnalysis methodAnalysis, Object controller) {
         Supplier<Object> methodInvokeSupplier = () -> {
             try {
-                return method.invoke(controller, args);
+                return methodAnalysis.getMethod().invoke(controller, methodAnalysis.getArgs());
             } catch (Throwable throwable) {
                 throw new RuntimeException(throwable);
             }
         };
-        Blocking blocking = method.getAnnotation(Blocking.class);
+        Blocking blocking = methodAnalysis.getMethod().getAnnotation(Blocking.class);
         if (blocking != null) {
             // 异步执行阻塞方法
-            System.out.println("..........");
             return VertxUtils.executeBlockingEx(this.vertx, methodInvokeSupplier);
         } else {
             // 同步执行
@@ -192,56 +248,42 @@ public class RouterWrapper {
      * 处理方法
      *
      * @param rootRouter     根路由
-     * @param rootPath       controller path
-     * @param controller     控制器
-     * @param method         方法
+     * @param controllerAnalysis     控制器
      * @param templateEngine 模板引擎
      */
-    private void actionMethod(Router rootRouter, String rootPath, Object controller, Method method, TemplateEngine templateEngine) {
-        // 获取方法上的path
-        String methodPath = getMethodPath(method);
-        boolean isFuture = false;
-        if (Future.class.isAssignableFrom(method.getReturnType())) {
-            isFuture = true;
-        }
-        boolean finalIsFuture = isFuture;
-        Handler<RoutingContext> handler = rc -> {
-            Future<Object> result = methodInvoke(rc, method, controller);
-            result.setHandler(res -> {
-                AsyncResult<Object> asyncResult = res;
-                if (finalIsFuture) {
-                    ((Future<Object>) res.result()).setHandler(r -> {
-                        if (r.succeeded()) {
-                            dataAction(rc, templateEngine, method, r.result());
+    private void actionMethod(Router rootRouter, ControllerAnalysis controllerAnalysis, TemplateEngine templateEngine) {
+        controllerAnalysis.getMethodAnalysisList().forEach(methodAnalysis -> {
+            String path = this.moduleName + controllerAnalysis.getPath() + methodAnalysis.getPath();
+            Handler<RoutingContext> handler = rc -> {
+                methodAnalysis.setArgs(this.actionParameter(methodAnalysis.getMethod(), rc));
+                Future<Object> result = methodInvoke(methodAnalysis, controllerAnalysis.getController());
+                if (result.succeeded()) {
+                    result.setHandler(res -> {
+                        AsyncResult<Object> asyncResult = res;
+                        if (methodAnalysis.isFuture()) {
+                            ((Future<Object>) res.result()).setHandler(r -> {
+                                if (r.succeeded()) {
+                                    dataAction(rc, templateEngine, methodAnalysis.getMethod(), r.result());
+                                } else {
+                                    log.error("Method: " + methodAnalysis.getMethodName() + " under the controller: " + controllerAnalysis.getControllerName() + " execute error");
+                                    throw new RuntimeException(result.cause());
+                                }
+                            });
                         } else {
-                            log.error("Method: " + method.getName() + " under the controller: " + controller.getClass().getName() + " execute error");
+                            // TODO FIXME  处理没有模板引擎
+                            dataAction(rc, null, methodAnalysis.getMethod(), asyncResult.result());
                         }
                     });
                 } else {
-                    // TODO FIXME  处理没有模板引擎
-                    dataAction(rc, templateEngine, method, asyncResult.result());
+                    log.error("Method: " + methodAnalysis.getMethodName() + " under the controller: " + controllerAnalysis.getControllerName() + " execute error");
+                    throw new RuntimeException(result.cause());
                 }
-            });
 
-        };
+            };
 
-        Controller ctrl = controller.getClass().getAnnotation(Controller.class);
-        if (ctrl != null) {
-            // controller
-            ResponseBody res = method.getAnnotation(ResponseBody.class);
-            if (res != null) {
-                actionRoute(rootRouter, method, rootPath + methodPath, handler);
-            } else {
-                if (templateEngine != null) {
-                    actionRoute(rootRouter, method, rootPath + methodPath, handler);
-                } else {
-                    actionRoute(rootRouter, method, rootPath + methodPath, handler);
-                }
-            }
-        } else {
-            // restController
-            actionRoute(rootRouter, method, rootPath + methodPath, handler);
-        }
+            actionRoute(rootRouter, methodAnalysis.getHttpMethod(), path, handler);
+        });
+
     }
 
     private void dataAction(RoutingContext rc, TemplateEngine templateEngine, Method method, Object data) {
@@ -268,36 +310,13 @@ public class RouterWrapper {
      * 为方法配置路由
      *
      * @param router  根路由
-     * @param method  方法
      * @param path    路由路径
      * @param handler 路由处理器
      */
-    private void actionRoute(Router router, Method method, String path, Handler<RoutingContext> handler) {
-        Annotation[] annotations = method.getAnnotations();
-        for (Annotation annotation : annotations) {
-            if (annotation instanceof RequestMapping) {
-                RequestMethod[] httpMethods = ((RequestMapping) annotation).method();
-                if (httpMethods.length == 0) {
-                    router.route(path).handler(BodyHandler.create()).handler(handler);
-                } else {
-                    for (RequestMethod httpMethod : httpMethods) {
-                        router.route(getHttpMethod(httpMethod), path).handler(BodyHandler.create()).handler(handler);
-                    }
-                }
-            }
-            if (annotation instanceof GetMapping) {
-                router.route(HttpMethod.GET, path).handler(BodyHandler.create()).handler(handler);
-            }
-            if (annotation instanceof PostMapping) {
-                router.route(HttpMethod.POST, path).handler(BodyHandler.create()).handler(handler);
-            }
-            if (annotation instanceof PutMapping) {
-                router.route(HttpMethod.PUT, path).handler(BodyHandler.create()).handler(handler);
-            }
-            if (annotation instanceof DeleteMapping) {
-                router.route(HttpMethod.DELETE, path).handler(BodyHandler.create()).handler(handler);
-            }
-        }
+    private void actionRoute(Router router, List<HttpMethod> httpMethods, String path, Handler<RoutingContext> handler) {
+        Route route = router.route(path);
+        httpMethods.forEach(route::method);
+        route.handler(BodyHandler.create()).handler(handler);
     }
 
     /**
