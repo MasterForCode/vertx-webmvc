@@ -28,7 +28,7 @@ public class UserController {
     }
 
     @RequestMapping(value = "/one/:id")
-    public User test(Long id) {
+    public @ResponseBody User test(Long id) {
         return userService.getById(id);
     }
 
@@ -39,15 +39,11 @@ public class UserController {
 
     @PostMapping(value = "/upload")
     public void upload(RoutingContext rc) {
-        System.out.println("--------");
         rc.fileUploads().forEach(each -> System.out.println(each.fileName()));
     }
     @GetMapping(value = "/template")
-    @PostMapping(value = "/template")
-    @Blocking
-    public Future<String> template(RoutingContext rc) throws InterruptedException {
-        Thread.sleep(10000);
+    public String template(RoutingContext rc) throws InterruptedException {
         rc.put("msg", "hello thymeleaf");
-        return Future.succeededFuture("template/index.html");
+        return "template/index.html";
     }
 }

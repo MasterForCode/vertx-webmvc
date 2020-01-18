@@ -28,7 +28,6 @@ public class VertxUtils {
         promise.complete(obj);
     }
 
-//
     public static <T> Future<T> executeBlockingEx(Vertx vertx, Supplier<T> supplier) {
         Future<T> resultFuture = Future.future();
         vertx.executeBlocking((future) -> {
@@ -38,7 +37,7 @@ public class VertxUtils {
     }
 
     public static <T> void completeFuture(Future<T> future, Supplier<T> supplier) {
-        T obj = null;
+        T obj;
 
         try {
             obj = supplier.get();

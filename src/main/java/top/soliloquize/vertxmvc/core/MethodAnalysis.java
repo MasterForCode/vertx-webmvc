@@ -5,11 +5,12 @@ import lombok.Builder;
 import lombok.Data;
 
 import java.lang.reflect.Method;
-import java.lang.reflect.Parameter;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
+ * method详情
+ *
  * @author wb
  * @date 2020/1/16
  */
