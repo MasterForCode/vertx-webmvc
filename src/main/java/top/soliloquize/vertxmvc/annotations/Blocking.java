@@ -1,15 +1,13 @@
 package top.soliloquize.vertxmvc.annotations;
 
-import java.lang.annotation.ElementType;
-import java.lang.annotation.Retention;
-import java.lang.annotation.RetentionPolicy;
-import java.lang.annotation.Target;
+import java.lang.annotation.*;
 
 /**
- * 当方式时阻塞方法时使用该注解
+ * 当方式是阻塞方法时使用该注解
  * @author wb
  */
 @Target(ElementType.METHOD)
 @Retention(RetentionPolicy.RUNTIME)
+@Documented
 public @interface Blocking {
 }

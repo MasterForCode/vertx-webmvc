@@ -33,6 +33,7 @@ import java.util.stream.Collectors;
 
 /**
  * mvc核心实现类
+ *
  * @author wb
  * @date 2019/9/27
  */
@@ -50,6 +51,14 @@ public class RouterWrapper {
      * 模块名，将被加在请求路径的最前端
      */
     private String moduleName = "";
+    /**
+     * 过滤器
+     */
+    private List<Filter> filterList;
+    /**
+     * 拦截器
+     */
+    private List<HandlerInterceptor> handlerInterceptorList;
 
     /**
      * 构造函数
@@ -70,6 +79,10 @@ public class RouterWrapper {
      * 为根root配置路由
      */
     public void routerMapping(Router rootRouter) {
+        // 处理过滤器
+        this.filterList = FilterResolver.sortFilter(FilterResolver.getFilters());
+        // 处理拦截器
+        this.handlerInterceptorList = InterceptorResolver.sortInterceptor(InterceptorResolver.getInterceptors());
         // 获得所有的controller
         Map<String, Object> allControllerMap = getAllController();
         if (allControllerMap.size() == 0) {
@@ -349,12 +362,38 @@ public class RouterWrapper {
             if (methodReturnType == void.class) {
                 response.end(Json.encode(ReturnBean.builder().build()));
             }
+            // 执行后置拦截器
+            this.handlerInterceptorList.forEach(each -> {
+                String urlPattern = each.urlPattern;
+                if (urlPattern.endsWith(Const.ANY)) {
+                    if (rc.currentRoute().getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
+                        InterceptorResolver.actionAfterInterceptor(each, rc);
+                    }
+                } else {
+                    if (urlPattern.equalsIgnoreCase(rc.currentRoute().getPath())) {
+                        InterceptorResolver.actionAfterInterceptor(each, rc);
+                    }
+                }
+            });
             response.end(Json.encode(ReturnBean.builder().data(data).build()));
         } else {
             if (this.viewerResolver != null && this.viewerResolver.getTemplateEngine() != null) {
                 if (data instanceof String) {
                     this.viewerResolver.getTemplateEngine().render(rc.data(), (String) data, re -> {
                         if (re.succeeded()) {
+                            // 执行后置拦截器
+                            this.handlerInterceptorList.forEach(each -> {
+                                String urlPattern = each.urlPattern;
+                                if (urlPattern.endsWith(Const.ANY)) {
+                                    if (rc.currentRoute().getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
+                                        InterceptorResolver.actionAfterInterceptor(each, rc);
+                                    }
+                                } else {
+                                    if (urlPattern.equalsIgnoreCase(rc.currentRoute().getPath())) {
+                                        InterceptorResolver.actionAfterInterceptor(each, rc);
+                                    }
+                                }
+                            });
                             response.putHeader(HttpHeaders.CONTENT_TYPE, "text/html").end(re.result());
                         } else {
                             rc.fail(re.cause());
@@ -380,9 +419,45 @@ public class RouterWrapper {
      * @param handler 路由处理器
      */
     private void actionRoute(Router router, List<HttpMethod> httpMethods, String path, Handler<RoutingContext> handler) {
-        System.out.println(path);
         Route route = router.route(path);
         httpMethods.forEach(route::method);
-        route.handler(BodyHandler.create()).handler(handler);
+        route.handler(BodyHandler.create()).handler(rc -> {
+            // 执行过滤器
+            this.filterList.forEach(each -> {
+                String urlPattern = each.urlPattern;
+                if (urlPattern.endsWith(Const.ANY)) {
+                    if (route.getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
+                        FilterResolver.actionFilter(each, rc);
+                    }
+                } else {
+                    if (urlPattern.equalsIgnoreCase(route.getPath())) {
+                        FilterResolver.actionFilter(each, rc);
+                    }
+                }
+            });
+            rc.next();
+        }).handler(rc -> {
+            // 执行前置拦截器
+            this.handlerInterceptorList.forEach(each -> {
+                String urlPattern = each.urlPattern;
+                if (urlPattern.endsWith(Const.ANY)) {
+                    if (route.getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
+                        boolean result = InterceptorResolver.actionPreInterceptor(each, rc);
+                        if (!result) {
+                            rc.fail(500);
+                        }
+                    }
+                } else {
+                    if (urlPattern.equalsIgnoreCase(route.getPath())) {
+                        boolean result = InterceptorResolver.actionPreInterceptor(each, rc);
+                        if (!result) {
+                            rc.fail(500);
+                        }
+                    }
+                }
+            });
+            System.out.println(rc.get("arrivalDate").toString());
+            rc.next();
+        }).handler(handler);
     }
 }
