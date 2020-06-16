@@ -6,7 +6,7 @@ package top.soliloquize.vertxmvc.exceptions;
  * @date 2019/9/28
  */
 public class AnnotationException extends RuntimeException {
-    public AnnotationException(String message) {
-        super(message);
+    public AnnotationException(String message, Throwable cause) {
+        super(message,cause);
     }
 }

@@ -1,7 +1,7 @@
 package top.soliloquize.vertxmvc.core;
 
 import io.vertx.ext.web.RoutingContext;
-import top.soliloquize.vertxmvc.spring.SpringUtils;
+import top.soliloquize.vertxmvc.spring.Springs;
 
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ public class FilterResolver {
      * @return Map<String, Filter>
      */
     public static Map<String, Filter> getFilters() {
-        return SpringUtils.getApplicationContext().getBeansOfType(Filter.class);
+        return Springs.getApplicationContext().getBeansOfType(Filter.class);
     }
 
     /**

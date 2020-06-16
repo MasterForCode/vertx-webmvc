@@ -1,31 +1,30 @@
 package top.soliloquize.vertxmvc;
 
-import io.vertx.core.AbstractVerticle;
-import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
-import io.vertx.ext.web.templ.thymeleaf.impl.ThymeleafTemplateEngineImpl;
-import lombok.extern.slf4j.Slf4j;
-import top.soliloquize.vertxmvc.core.MvcConfig;
-import top.soliloquize.vertxmvc.core.ViewResolver;
-import top.soliloquize.vertxmvc.spring.SpringUtils;
+import io.vertx.redis.client.Redis;
+import io.vertx.redis.client.RedisAPI;
+import io.vertx.redis.client.RedisConnection;
+import top.soliloquize.vertxmvc.core.Initialization;
+import top.soliloquize.vertxmvc.spring.Springs;
 
 /**
  * @author wb
- * @date 2019/9/27
+ * @date 2020/6/4
  */
-@Slf4j
-public class MainVerticle extends AbstractVerticle {
+public class MainVerticle extends DefaultVerticle {
     public static void main(String[] args) {
-        SpringUtils.init("classpath:applicationContext.xml");
-        Vertx vertx = Vertx.vertx();
-        vertx.deployVerticle(new MainVerticle());
-    }
-
-    @Override
-    public void start(Promise<Void> startPromise) {
-        HttpServerVerticle.deploy(
-                vertx,
-                MvcConfig.builder().viewResolver(ViewResolver.builder().templateEngine(new ThymeleafTemplateEngineImpl(vertx)).build()).build()
-        );
+        new MainVerticle().run(null, new Initialization() {
+            @Override
+            public void initSpring(Vertx vertx) {
+                Springs.initByFile("classpath:applicationContext.xml");
+                Redis.createClient(vertx, "redis://192.168.88.125:6379")
+                        .connect(onConnect -> {
+                            if (onConnect.succeeded()) {
+                                RedisConnection client = onConnect.result();
+                                Singleton.redis = RedisAPI.api(client);
+                            }
+                        });
+            }
+        });
     }
 }

@@ -42,6 +42,8 @@ dependencies {
     // https://mvnrepository.com/artifact/io.vertx/vertx-web-templ-thymeleaf
     compile group: 'io.vertx', name: 'vertx-web-templ-thymeleaf', version: '3.8.1'
 
+    compile 'io.vertx:vertx-redis-client:3.9.1'
+
 }
 
 tasks.withType(JavaCompile) {

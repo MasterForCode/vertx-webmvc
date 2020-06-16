@@ -23,7 +23,7 @@ public class UserController {
     private UserService userService;
 
     @RequestMapping(value = "/all")
-    public List<User> test(List<Integer> a) {
+    public @ResponseBody List<User> test(List<Integer> a) {
         return userService.getAllUsers();
     }
 
@@ -33,6 +33,7 @@ public class UserController {
     }
 
     @PostMapping(value = "/one")
+    @ResponseBody
     public User add(@RequestBody User user) {
         return userService.addOne(user);
     }

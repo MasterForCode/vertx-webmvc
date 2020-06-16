@@ -1,7 +1,7 @@
 package top.soliloquize.vertxmvc.core;
 
 import io.vertx.ext.web.RoutingContext;
-import top.soliloquize.vertxmvc.spring.SpringUtils;
+import top.soliloquize.vertxmvc.spring.Springs;
 
 import java.util.List;
 import java.util.Map;
@@ -20,7 +20,7 @@ public class InterceptorResolver {
      * @return Map<String, HandlerInterceptor>
      */
     public static Map<String, HandlerInterceptor> getInterceptors() {
-        return SpringUtils.getApplicationContext().getBeansOfType(HandlerInterceptor.class);
+        return Springs.getApplicationContext().getBeansOfType(HandlerInterceptor.class);
     }
 
     /**
@@ -29,10 +29,9 @@ public class InterceptorResolver {
      * @param interceptorMap Map<String, HandlerInterceptor>
      */
     public static List<HandlerInterceptor> sortInterceptor(Map<String, HandlerInterceptor> interceptorMap) {
-        List<HandlerInterceptor> interceptorList = interceptorMap.values().stream()
+        return interceptorMap.values().stream()
                 .sorted(((o1, o2) -> Math.toIntExact(o1.order - o2.order)))
                 .collect(Collectors.toList());
-        return interceptorList;
     }
 
     /**

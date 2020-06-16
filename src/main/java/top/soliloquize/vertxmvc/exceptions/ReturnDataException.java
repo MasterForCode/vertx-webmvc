@@ -6,7 +6,7 @@ package top.soliloquize.vertxmvc.exceptions;
  * @date 2020/1/18
  */
 public class ReturnDataException extends RuntimeException {
-    public ReturnDataException(String message) {
-        super(message);
+    public ReturnDataException(String message, Throwable cause) {
+        super(message, cause);
     }
 }

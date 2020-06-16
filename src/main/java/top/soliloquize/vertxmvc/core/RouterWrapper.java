@@ -1,6 +1,5 @@
 package top.soliloquize.vertxmvc.core;
 
-import io.vertx.core.AsyncResult;
 import io.vertx.core.Future;
 import io.vertx.core.Handler;
 import io.vertx.core.Vertx;
@@ -10,6 +9,7 @@ import io.vertx.core.json.Json;
 import io.vertx.ext.web.Route;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.common.template.TemplateEngine;
 import io.vertx.ext.web.handler.BodyHandler;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ArrayUtils;
@@ -23,7 +23,7 @@ import top.soliloquize.vertxmvc.exceptions.ControllerException;
 import top.soliloquize.vertxmvc.exceptions.MappingException;
 import top.soliloquize.vertxmvc.exceptions.ReturnDataException;
 import top.soliloquize.vertxmvc.exceptions.TemplateEngineException;
-import top.soliloquize.vertxmvc.spring.SpringUtils;
+import top.soliloquize.vertxmvc.spring.Springs;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
@@ -42,7 +42,7 @@ public class RouterWrapper {
     /**
      * 视图处理器
      */
-    private ViewResolver viewerResolver;
+    private TemplateEngine templateEngine;
     /**
      * vertx实例
      */
@@ -65,14 +65,14 @@ public class RouterWrapper {
      *
      * @param vertx          vertx实例
      * @param moduleName     模块名
-     * @param viewerResolver 视图处理器
+     * @param templateEngine 模板引擎
      */
-    public RouterWrapper(Vertx vertx, String moduleName, ViewResolver viewerResolver) {
+    public RouterWrapper(Vertx vertx, String moduleName, TemplateEngine templateEngine) {
         this.vertx = vertx;
         if (StringUtils.isNotBlank(moduleName)) {
             this.moduleName = Const.PATH_SPLIT + moduleName;
         }
-        this.viewerResolver = viewerResolver;
+        this.templateEngine = templateEngine;
     }
 
     /**
@@ -89,9 +89,9 @@ public class RouterWrapper {
             log.warn("no controller found");
             return;
         }
-        List<ControllerAnalysis> controllerAnalysisList = this.analysisController(allControllerMap);
+        List<ControllerStructure> controllerStructureList = this.analysisController(allControllerMap);
 
-        controllerAnalysisList.forEach(controllerAnalysis -> this.actionMethod(rootRouter, controllerAnalysis));
+        controllerStructureList.forEach(controllerStructure -> this.actionMethod(rootRouter, controllerStructure));
 
     }
 
@@ -101,19 +101,27 @@ public class RouterWrapper {
      * @return 控制器
      */
     private Map<String, Object> getAllController() {
-        Map<String, Object> controllerMap = SpringUtils.getApplicationContext().getBeansWithAnnotation(Controller.class);
-        Map<String, Object> restControllerMap = SpringUtils.getApplicationContext().getBeansWithAnnotation(RestController.class);
+        Map<String, Object> allControllerMap = Springs.getApplicationContext().getBeansWithAnnotation(Controller.class);
+        Map<String, Object> restControllerMap = new HashMap<>();
+        Map<String, Object> controllerMap = new HashMap<>();
+        allControllerMap.forEach((key, value) -> {
+            if (value.getClass().getAnnotation(RestController.class) != null) {
+                restControllerMap.put(key, value);
+            } else {
+                controllerMap.put(key, value);
+            }
+        });
         controllerMap.forEach((name, controller) -> {
             if (ArrayUtils.contains(controller.getClass().getAnnotations(), RestController.class)) {
                 log.error("controller " + name + " has two kind annotation：[Controller,RestController]");
-                throw new ControllerException("controller " + name + " has two kind annotation：[Controller,RestController]");
+                throw new ControllerException("controller " + name + " has two kind annotation：[Controller,RestController]", new Throwable());
             }
 
         });
         restControllerMap.forEach((name, controller) -> {
             if (ArrayUtils.contains(controller.getClass().getAnnotations(), Controller.class)) {
                 log.error("controller " + name + " has two kind annotation：[Controller,RestController]");
-                throw new ControllerException("controller " + name + " has two kind annotation：[Controller,RestController]");
+                throw new ControllerException("controller " + name + " has two kind annotation：[Controller,RestController]", new Throwable());
             }
 
         });
@@ -129,10 +137,10 @@ public class RouterWrapper {
      * @param allControllerMap controller map
      * @return 解析结果
      */
-    private List<ControllerAnalysis> analysisController(Map<String, Object> allControllerMap) {
-        List<ControllerAnalysis> result = new ArrayList<>(allControllerMap.size());
+    private List<ControllerStructure> analysisController(Map<String, Object> allControllerMap) {
+        List<ControllerStructure> result = new ArrayList<>(allControllerMap.size());
         allControllerMap.forEach((controllerName, controller) -> {
-            ControllerAnalysis element = ControllerAnalysis.builder().controller(controller).controllerName(controllerName).build();
+            ControllerStructure element = ControllerStructure.builder().controller(controller).controllerName(controllerName).build();
             result.add(element);
             element.setPath(getRootPath(controller));
             // 处理控制器中的方法，过滤掉没有@RequestMapping、@GetMapping、@PostMapping、@PutMapping、@DeleteMapping任意一个注解的方法
@@ -142,8 +150,8 @@ public class RouterWrapper {
                     .collect(Collectors.toList());
             boolean restFulController = controller.getClass().getAnnotation(RestController.class) != null;
             methods.forEach(method -> {
-                MethodAnalysis subElement = MethodAnalysis.builder().method(method).methodName(method.getName()).build();
-                element.getMethodAnalysisList().add(subElement);
+                MethodStructure subElement = MethodStructure.builder().method(method).methodName(method.getName()).build();
+                element.getMethodStructureList().add(subElement);
                 subElement.setFuture(Future.class.isAssignableFrom(method.getReturnType()));
                 subElement.setPath(this.getMethodPath(method));
                 subElement.setRestFul(restFulController || method.getAnnotation(ResponseBody.class) != null);
@@ -218,7 +226,7 @@ public class RouterWrapper {
             }
         }
         if (count != 1) {
-            throw new MappingException(method.getName() + "'s mappings number is wrong, only one here");
+            throw new MappingException(method.getName() + "'s mappings number is wrong, only one here", new Throwable());
         }
         if (requestMapping != null) {
             String[] path = requestMapping.value();
@@ -283,37 +291,37 @@ public class RouterWrapper {
      * 处理方法
      *
      * @param rootRouter         根路由
-     * @param controllerAnalysis 控制器
+     * @param controllerStructure 控制器
      */
-    private void actionMethod(Router rootRouter, ControllerAnalysis controllerAnalysis) {
-        controllerAnalysis.getMethodAnalysisList().forEach(methodAnalysis -> {
-            String path = this.moduleName + controllerAnalysis.getPath() + methodAnalysis.getPath();
+    @SuppressWarnings("unchecked")
+    private void actionMethod(Router rootRouter, ControllerStructure controllerStructure) {
+        controllerStructure.getMethodStructureList().forEach(methodStructure -> {
+            String path = this.moduleName + controllerStructure.getPath() + methodStructure.getPath();
             Handler<RoutingContext> handler = rc -> {
-                methodAnalysis.setArgs(RequestResolver.injectionParameters(methodAnalysis.getMethod(), rc));
-                Future<Object> result = methodInvoke(methodAnalysis, controllerAnalysis.getController());
-                result.setHandler(re -> {
+                methodStructure.setArgs(RequestResolver.injectionParameters(methodStructure.getMethod(), rc));
+                Future<Object> result = methodInvoke(methodStructure, controllerStructure.getController());
+                result.onComplete(re -> {
                     if (re.succeeded()) {
-                        AsyncResult<Object> asyncResult = re;
-                        if (methodAnalysis.isFuture()) {
-                            ((Future<Object>) re.result()).setHandler(r -> {
+                        if (methodStructure.isFuture()) {
+                            ((Future<Object>) re.result()).onComplete(r -> {
                                 if (r.succeeded()) {
-                                    dataAction(rc, methodAnalysis, r.result());
+                                    dataAction(rc, methodStructure, r.result());
                                 } else {
-                                    log.error("Method: " + methodAnalysis.getMethodName() + " under the controller: " + controllerAnalysis.getControllerName() + " execute error");
+                                    log.error("Method: " + methodStructure.getMethodName() + " under the controller: " + controllerStructure.getControllerName() + " execute error");
                                     throw new RuntimeException(result.cause());
                                 }
                             });
                         } else {
-                            dataAction(rc, methodAnalysis, asyncResult.result());
+                            dataAction(rc, methodStructure, re.result());
                         }
                     } else {
-                        log.error("Method: " + methodAnalysis.getMethodName() + " under the controller: " + controllerAnalysis.getControllerName() + " execute error");
+                        log.error("Method: " + methodStructure.getMethodName() + " under the controller: " + controllerStructure.getControllerName() + " execute error");
                         throw new RuntimeException(result.cause());
                     }
                 });
             };
 
-            actionRoute(rootRouter, methodAnalysis.getHttpMethod(), path, handler);
+            actionRoute(rootRouter, methodStructure.getHttpMethod(), path, handler);
         });
 
     }
@@ -321,19 +329,19 @@ public class RouterWrapper {
     /**
      * 执行方法
      *
-     * @param methodAnalysis 方法
+     * @param methodStructure 方法
      * @param controller     控制器
      * @return 结果
      */
-    private Future<Object> methodInvoke(MethodAnalysis methodAnalysis, Object controller) {
+    private Future<Object> methodInvoke(MethodStructure methodStructure, Object controller) {
         Supplier<Object> methodInvokeSupplier = () -> {
             try {
-                return methodAnalysis.getMethod().invoke(controller, methodAnalysis.getArgs());
+                return methodStructure.getMethod().invoke(controller, methodStructure.getArgs());
             } catch (Throwable throwable) {
                 throw new RuntimeException(throwable);
             }
         };
-        Blocking blocking = methodAnalysis.getMethod().getAnnotation(Blocking.class);
+        Blocking blocking = methodStructure.getMethod().getAnnotation(Blocking.class);
         if (blocking != null) {
             // 异步执行阻塞方法
             return VertxUtils.executeBlockingEx(this.vertx, methodInvokeSupplier);
@@ -351,49 +359,27 @@ public class RouterWrapper {
      * 处理返回值
      *
      * @param rc             routingContext 上下文
-     * @param methodAnalysis 方法详情
+     * @param methodStructure 方法详情
      * @param data           返回值
      */
-    private void dataAction(RoutingContext rc, MethodAnalysis methodAnalysis, Object data) {
-        Class<?> methodReturnType = methodAnalysis.getMethod().getReturnType();
+    private void dataAction(RoutingContext rc, MethodStructure methodStructure, Object data) {
+        Class<?> methodReturnType = methodStructure.getMethod().getReturnType();
         HttpServerResponse response = rc.response();
-        if (methodAnalysis.isRestFul()) {
+        if (methodStructure.isRestFul()) {
             response.putHeader(HttpHeaders.CONTENT_TYPE, "application/json;charset=UTF-8");
             if (methodReturnType == void.class) {
                 response.end(Json.encode(ReturnBean.builder().build()));
             }
             // 执行后置拦截器
-            this.handlerInterceptorList.forEach(each -> {
-                String urlPattern = each.urlPattern;
-                if (urlPattern.endsWith(Const.ANY)) {
-                    if (rc.currentRoute().getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
-                        InterceptorResolver.actionAfterInterceptor(each, rc);
-                    }
-                } else {
-                    if (urlPattern.equalsIgnoreCase(rc.currentRoute().getPath())) {
-                        InterceptorResolver.actionAfterInterceptor(each, rc);
-                    }
-                }
-            });
+            actionInterceptors(rc);
             response.end(Json.encode(ReturnBean.builder().data(data).build()));
         } else {
-            if (this.viewerResolver != null && this.viewerResolver.getTemplateEngine() != null) {
+            if (this.templateEngine != null) {
                 if (data instanceof String) {
-                    this.viewerResolver.getTemplateEngine().render(rc.data(), (String) data, re -> {
+                    this.templateEngine.render(rc.data(), (String) data, re -> {
                         if (re.succeeded()) {
                             // 执行后置拦截器
-                            this.handlerInterceptorList.forEach(each -> {
-                                String urlPattern = each.urlPattern;
-                                if (urlPattern.endsWith(Const.ANY)) {
-                                    if (rc.currentRoute().getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
-                                        InterceptorResolver.actionAfterInterceptor(each, rc);
-                                    }
-                                } else {
-                                    if (urlPattern.equalsIgnoreCase(rc.currentRoute().getPath())) {
-                                        InterceptorResolver.actionAfterInterceptor(each, rc);
-                                    }
-                                }
-                            });
+                            actionInterceptors(rc);
                             response.putHeader(HttpHeaders.CONTENT_TYPE, "text/html").end(re.result());
                         } else {
                             rc.fail(re.cause());
@@ -401,14 +387,34 @@ public class RouterWrapper {
                     });
                 } else {
                     log.error("Must return string when using template");
-                    throw new ReturnDataException("Must return string when using template");
+                    throw new ReturnDataException("Must return string when using template", new Throwable());
                 }
             } else {
                 log.error("No template engine is set");
-                throw new TemplateEngineException("No template engine is set");
+                throw new TemplateEngineException("No template engine is set", new Throwable());
             }
         }
 
+    }
+
+    /**
+     * 处理拦截器
+     *
+     * @param rc RoutingContext
+     */
+    private void actionInterceptors(RoutingContext rc) {
+        this.handlerInterceptorList.forEach(each -> {
+            String urlPattern = each.urlPattern;
+            if (urlPattern.endsWith(Const.ANY)) {
+                if (rc.currentRoute().getPath().startsWith(StringUtils.substring(urlPattern, 0, urlPattern.length() - 1))) {
+                    InterceptorResolver.actionAfterInterceptor(each, rc);
+                }
+            } else {
+                if (urlPattern.equalsIgnoreCase(rc.currentRoute().getPath())) {
+                    InterceptorResolver.actionAfterInterceptor(each, rc);
+                }
+            }
+        });
     }
 
     /**

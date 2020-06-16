@@ -38,6 +38,9 @@ public class RequestResolver {
      * @return Boolean
      */
     static boolean validatorRequest(Method method) {
+        if (method.getName().startsWith(Const.LAMBDA)) {
+            return false;
+        }
         List<String> leftList = Arrays.stream(method.getAnnotations()).map(each -> each.annotationType().toString()).collect(Collectors.toList());
         List<Object> objects = new ArrayList<>();
         for (Object r : RequestResolver.REQUEST_METHOD) {
@@ -65,11 +68,11 @@ public class RequestResolver {
     static void validatorParameter(String methodName, Parameter[] parameters) {
         long requestBodyCount = Arrays.stream(parameters).filter(parameter -> parameter.getAnnotation(RequestBody.class) != null).count();
         if (requestBodyCount > 1) {
-            throw new AnnotationException("method " + methodName + " has too many @RequestBody annotation");
+            throw new AnnotationException("method " + methodName + " has too many @RequestBody annotation", new Throwable());
         }
         for (Parameter parameter : parameters) {
             if (requestBodyCount == 1 && RequestResolver.isStringOrPrimitiveType(parameter.getType())) {
-                throw new AnnotationException("parameter " + parameter.getName() + " can not has @RequestBody annotation");
+                throw new AnnotationException("parameter " + parameter.getName() + " can not has @RequestBody annotation", new Throwable());
             }
         }
     }

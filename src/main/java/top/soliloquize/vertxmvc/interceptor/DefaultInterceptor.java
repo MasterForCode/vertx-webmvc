@@ -28,7 +28,7 @@ public class DefaultInterceptor extends HandlerInterceptor {
 
     @Override
     public void afterInterceptor(RoutingContext rc) {
-        log.info("remote address: "+rc.request().host()+",spend: " + (System.currentTimeMillis() - (Long)rc.get("arrivalDate")) + "ms");
+        log.info("remote address: "+rc.request().host()+",path: "+rc.request().path()+",spend: " + (System.currentTimeMillis() - (Long)rc.get("arrivalDate")) + "ms");
         super.afterInterceptor(rc);
     }
 }

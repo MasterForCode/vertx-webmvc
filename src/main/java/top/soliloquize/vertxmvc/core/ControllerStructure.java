@@ -13,10 +13,10 @@ import java.util.List;
  */
 @Data
 @Builder
-public class ControllerAnalysis {
+public class ControllerStructure {
     private String path;
     private String controllerName;
     private Object controller;
     @Builder.Default
-    List<MethodAnalysis> methodAnalysisList = new ArrayList<>();
+    List<MethodStructure> methodStructureList = new ArrayList<>();
 }

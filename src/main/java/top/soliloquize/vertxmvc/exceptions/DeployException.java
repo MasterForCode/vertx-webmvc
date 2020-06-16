@@ -6,11 +6,7 @@ package top.soliloquize.vertxmvc.exceptions;
  * @date 2020/1/16
  */
 public class DeployException extends Exception {
-    public DeployException(String message) {
-        super(message);
-    }
-
-    public DeployException(Throwable cause) {
-        super(cause);
+    public DeployException(String message, Throwable cause) {
+        super(message,cause);
     }
 }

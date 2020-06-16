@@ -6,7 +6,7 @@ package top.soliloquize.vertxmvc.exceptions;
  * @date 2019/9/28
  */
 public class ParameterExeception extends RuntimeException {
-    public ParameterExeception(String message) {
-        super(message);
+    public ParameterExeception(String message, Throwable cause) {
+        super(message,cause);
     }
 }

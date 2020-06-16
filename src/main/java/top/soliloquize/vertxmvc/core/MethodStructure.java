@@ -16,7 +16,7 @@ import java.util.List;
  */
 @Data
 @Builder
-public class MethodAnalysis {
+public class MethodStructure {
     private String path;
     private String methodName;
     private Object[] args;

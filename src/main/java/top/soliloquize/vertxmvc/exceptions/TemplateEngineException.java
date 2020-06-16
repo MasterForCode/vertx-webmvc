@@ -6,7 +6,7 @@ package top.soliloquize.vertxmvc.exceptions;
  * @date 2020/1/18
  */
 public class TemplateEngineException extends RuntimeException {
-    public TemplateEngineException(String message) {
-        super(message);
+    public TemplateEngineException(String message, Throwable cause) {
+        super(message,cause);
     }
 }

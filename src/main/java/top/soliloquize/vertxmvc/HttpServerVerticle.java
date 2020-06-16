@@ -4,34 +4,36 @@ import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.common.template.TemplateEngine;
+import io.vertx.ext.web.templ.thymeleaf.impl.ThymeleafTemplateEngineImpl;
 import lombok.extern.slf4j.Slf4j;
-import top.soliloquize.vertxmvc.core.MvcConfig;
+import top.soliloquize.vertxmvc.core.AppContext;
+import top.soliloquize.vertxmvc.core.ConfigOptions;
 import top.soliloquize.vertxmvc.core.RouterWrapper;
-import top.soliloquize.vertxmvc.core.ViewResolver;
+import top.soliloquize.vertxmvc.core.SupportedTemplateEngine;
 
 /**
- * 部署vertx应用
  * @author wb
- * @date 2019/9/27
+ * @date 2020/6/4
  */
 @Slf4j
 public class HttpServerVerticle {
+    private Vertx vertx;
 
-    public static void deploy(Vertx vertx, MvcConfig mvcConfig) {
-        String moduleName = mvcConfig.getJsonObject().getString("module.name");
-        Integer instances = mvcConfig.getJsonObject().getInteger("server.instance");
-        Integer port = mvcConfig.getJsonObject().getInteger("server.port");
-        ViewResolver viewResolver = mvcConfig.getViewResolver();
-        if (instances == null) {
-            instances = Runtime.getRuntime().availableProcessors();
-        }
-        if (port == null) {
-            port = 8080;
-        }
+    public HttpServerVerticle(Vertx vertx) {
+        AppContext.INSTANCE.setVertx(vertx);
+        this.vertx = vertx;
+    }
 
-        Router rootRouter = Router.router(vertx);
-        RouterWrapper routerWrapper = new RouterWrapper(vertx, moduleName, viewResolver);
-        routerWrapper.routerMapping(rootRouter);
+    public void deploy(JsonObject config) {
+        assert config != null;
+        String moduleName = config.getString(ConfigOptions.MODULE_NAME);
+        Integer instances = config.getInteger(ConfigOptions.SERVER_INSTANCE);
+        Integer port = config.getInteger(ConfigOptions.SERVER_PORT);
+        String templateEngineName = config.getString(ConfigOptions.TEMPLATE_ENGINE_NAME);
+
+        Router rootRouter = Router.router(this.vertx);
+        new RouterWrapper(vertx, moduleName, this.getTemplateEngineByName(templateEngineName)).routerMapping(rootRouter);
 
         // 根据cpu核数或指定的数据部署实例个数
         for (int i = 0; i < instances; ++i) {
@@ -47,6 +49,16 @@ public class HttpServerVerticle {
 
             });
         }
+    }
 
+    private TemplateEngine getTemplateEngineByName(String name) {
+        switch (name) {
+            case SupportedTemplateEngine.THYMELEAF:
+                return new ThymeleafTemplateEngineImpl(vertx);
+//            case SupportedTemplateEngine.JSP:
+//                return new ThymeleafTemplateEngineImpl(vertx);
+            default:
+                return null;
+        }
     }
 }
